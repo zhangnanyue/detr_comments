@@ -151,6 +151,8 @@ class TransformerEncoderLayer(nn.Module):
                      src_mask: Optional[Tensor] = None,
                      src_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None):
+        # DETR 不在最开始简单地将特征和位置编码相加，而是在每个注意力层内部动态地注入位置信息。
+        # 将空间位置编码 pos 加到 src 上，生成 Q 和 K
         q = k = self.with_pos_embed(src, pos)
         src2 = self.self_attn(q, k, value=src, attn_mask=src_mask,
                               key_padding_mask=src_key_padding_mask)[0]
