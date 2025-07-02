@@ -27,11 +27,10 @@ class Transformer(nn.Module):
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
         encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
-
-        # 由于每层ecoder_layer结构相同，可以通过多次重复生生一个Encoder
+        # 由于每层ecoder_layer结构相同，可以通过多次重复生成一个Encoder
         self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
 
-        # decoder同样
+        # decoder同样如此
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
         decoder_norm = nn.LayerNorm(d_model)
@@ -44,8 +43,16 @@ class Transformer(nn.Module):
         self.nhead = nhead
 
     def _reset_parameters(self):
+        # 遍历模型的中的所有参数，包括其所有的子模块，p在每次循环中代表一个参数张量（Tensor）
         for p in self.parameters():
+            # p.dim() 返回参数张量 p 的维度数量
+            # 这个条件判断的目的是只选择权重矩阵 (Weight Matrices)，而忽略偏置向量 (Bias Vectors)。
+            # 权重矩阵：在线性层 (nn.Linear) 或注意力层中，权重通常是一个二维矩阵，其形状类似于 [输出维度, 输入维度]。因此，它的维度 p.dim() 是 2，满足 > 1 的条件。
+            # 偏置向量：偏置项通常是一个一维向量，其形状为 [输出维度]。它的维度 p.dim() 是 1，不满足 > 1 的条件。
+            # 其他参数：像 LayerNorm 中的 weight 和 bias 参数也是一维的，同样会被这个条件排除。
             if p.dim() > 1:
+                # Xavier 均匀分布 (也称作 Glorot 均匀分布) 是一种初始化方法，用于在神经网络中初始化权重矩阵。
+                # 它的核心思想是：根据网络层的输入和输出神经元数量来自动调整初始权重的范围，从而使得在网络前向传播和反向传播时，信号的方差能够尽可能保持一致。
                 nn.init.xavier_uniform_(p)
 
     def forward(self, src, mask, query_embed, pos_embed):
