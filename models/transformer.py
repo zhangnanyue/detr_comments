@@ -23,11 +23,15 @@ class Transformer(nn.Module):
                  return_intermediate_dec=False):
         super().__init__()
 
+        # 定义encoder_layer层
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
         encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
+
+        # 由于每层ecoder_layer结构相同，可以通过多次重复生生一个Encoder
         self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
 
+        # decoder同样
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before)
         decoder_norm = nn.LayerNorm(d_model)
