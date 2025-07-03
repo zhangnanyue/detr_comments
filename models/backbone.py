@@ -197,17 +197,30 @@ class Joiner(nn.Sequential):
         # nn.Sequential 会自动将这两个模块存储起来。此时，我们可以通过 self[0] 访问 backbone，通过 self[1] 访问 position_embedding。
         super().__init__(backbone, position_embedding)
 
-    # NestedTensor 是 PyTorch 中的一个数据结构，用于表示嵌套的 Tensor 列表。
+
     # 由于我们希望forward 方法能返回两个值 out pos，所以它需要重写 nn.Sequential 的默认 forward 行为。
+    # 输入是一个 NestedTensor 对象，它包含两个属性：
+        # tensors：一个形状为 (B, C, H, W) 的张量，表示图像特征。
+        # mask：一个形状为 (B, H, W) 的布尔掩码，表示哪些位置是有效的（即哪些像素是可见的）。
     def forward(self, tensor_list: NestedTensor):
+        # 调用 self[0]，也就是 backbone 模块，对输入 tensor_list 进行处理，提取特征。
+        # backbone 的输出 xs 是一个字典，键是层的名字（如 "0"），值是特征图 NestedTensor。
         xs = self[0](tensor_list)
+        # 初始化两个空列表，分别用于存放最终的特征图和位置编码。
         out: List[NestedTensor] = []
         pos = []
+        # 遍历 backbone 输出的字典。虽然 DETR 默认只用 layer4 的输出，但这个写法具有通用性，可以处理多层特征输出的情况。
         for name, x in xs.items():
+            # 将特征图 x 添加到 out 列表中。
             out.append(x)
             # position encoding
+            # 调用 self[1]，也就是 position_embedding 模块，并将特征图 x 作为输入。
+            # position_embedding 会根据 x 的形状计算出对应的位置编码。
+            # .to(x.tensors.dtype) 确保位置编码的数据类型与特征图的数据类型一致（例如都是 torch.float32）。
+            # 将生成的位置编码添加到 pos 列表中。
             pos.append(self[1](x).to(x.tensors.dtype))
 
+        # 返回包含特征图的列表 out 和包含位置编码的列表 pos。这两个输出将直接作为下一阶段 Transformer 的输入。
         return out, pos
 
 # 一个完整的BackBone由三部分构成：
