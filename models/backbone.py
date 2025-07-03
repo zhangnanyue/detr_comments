@@ -37,14 +37,21 @@ class FrozenBatchNorm2d(torch.nn.Module):
     # n 代表输入特征图的通道数 (number of channels)。BatchNorm 是对每个通道独立进行操作的，所以需要知道有多少个通道。
     def __init__(self, n):
         super(FrozenBatchNorm2d, self).__init__()
-        # 这是理解此类的关键。register_buffer 是 PyTorch 的一个函数，用于注册一个不被视为模型参数的状态。
+        # self.register_buffer(...)这是理解此类的关键。
+        # register_buffer 是 PyTorch 的一个函数，用于注册一个不被视为模型参数的状态。
         # Buffer vs. Parameter:
             # nn.Parameter: 会被 model.parameters() 收集，从而被优化器（如Adam, SGD）更新。
             # buffer: 也是模型状态的一部分（会被保存在 state_dict 中），但不会被优化器更新。
-        # 通过使用 register_buffer，作者确保了 weight, bias, running_mean, running_var 这些值在模型加载后，在训练过程中不会被改变，从而实现了“冻结”。
+        # 通过使用 register_buffer，确保了weight, bias, running_mean, running_var这些值在模型加载后，在训练过程中不会被改变，从而实现了“冻结”。
+
+        # 注册一个名为 weight 的缓冲区。这是 BatchNorm 中的可学习仿射参数 γ (gamma)。
+        # 这里初始化为全1向量。当从预训练模型加载权重时，这些值会被覆盖。
         self.register_buffer("weight", torch.ones(n))
+        # 注册一个名为 bias 的缓冲区。这是 BatchNorm 中的可学习仿射参数 β (beta)。
         self.register_buffer("bias", torch.zeros(n))
+        # 注册一个名为 running_mean 的缓冲区。即 BatchNorm 中在整个训练集上估计的均值 μ。
         self.register_buffer("running_mean", torch.zeros(n))
+        # 注册一个名为 running_var 的缓冲区。即 BatchNorm 在整个训练集上估计的方差 σ²。
         self.register_buffer("running_var", torch.ones(n))
 
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict,
