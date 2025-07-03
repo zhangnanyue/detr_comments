@@ -22,8 +22,8 @@ from .position_encoding import build_position_encoding
     # 但在下游任务（如目标检测）中，我们的批次大小通常很小（比如每张 GPU 上只有 1-2 张图），
     # 这时计算出的均值方差波动很大，如果用它来归一化，会“污染”预训练好的高质量特征。
 # 解决方法：
-    # 使用 FrozenBatchNorm2d 来代替标准 BatchNorm2d，它不会根据当前批次的数据来计算均值和方差，而是使用预训练好的均值和方差。
-# 这样，我们就可以在下游任务中使用更小的批次大小，同时保持预训练好的高质量特征。
+    # 使用 FrozenBatchNorm2d 来代替标准 BatchNorm2d，它不会根据当前批次的数据来计算均值和方差，
+    # 而是使用预训练好的均值和方差。这样，我们就可以在下游任务中使用更小的批次大小，同时保持预训练好的高质量特征。
 
 # 总结：FrozenBatchNorm2d 保护了预训练模型的权重不受小批次训练的干扰，从而保留了其强大的泛化特征提取能力。
 class FrozenBatchNorm2d(torch.nn.Module):
@@ -34,9 +34,14 @@ class FrozenBatchNorm2d(torch.nn.Module):
     without which any other models than torchvision.models.resnet[18,34,50,101]
     produce nans.
     """
-
+    # n 代表输入特征图的通道数 (number of channels)。BatchNorm 是对每个通道独立进行操作的，所以需要知道有多少个通道。
     def __init__(self, n):
         super(FrozenBatchNorm2d, self).__init__()
+        # 这是理解此类的关键。register_buffer 是 PyTorch 的一个函数，用于注册一个不被视为模型参数的状态。
+        # Buffer vs. Parameter:
+            # nn.Parameter: 会被 model.parameters() 收集，从而被优化器（如Adam, SGD）更新。
+            # buffer: 也是模型状态的一部分（会被保存在 state_dict 中），但不会被优化器更新。
+        # 通过使用 register_buffer，作者确保了 weight, bias, running_mean, running_var 这些值在模型加载后，在训练过程中不会被改变，从而实现了“冻结”。
         self.register_buffer("weight", torch.ones(n))
         self.register_buffer("bias", torch.zeros(n))
         self.register_buffer("running_mean", torch.zeros(n))
