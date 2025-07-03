@@ -35,7 +35,28 @@ class FrozenBatchNorm2d(torch.nn.Module):
     produce nans.
     """
     # n 代表输入特征图的通道数 (number of channels)。BatchNorm 是对每个通道独立进行操作的，所以需要知道有多少个通道。
-    # TODO：该如何理解BatchNorm 是对每个通道独立进行操作的？
+    # 该如何理解BatchNorm 是对每个通道独立进行操作的？
+        # BatchNorm 对每个通道的归一化，使用的均值、方差、以及后续缩放（γ）和偏移（β）参数，都是这个通道专属的。通道与通道之间互不干扰。
+        # 假设输入的特征图X的形状是（B，C，H，W），例如(4, 3, 10, 10)，表示：
+            # B = 4：表示有4个样本
+            # C = 3：表示有3个通道
+            # H = 10：表示每个通道的特征图高度为10
+            # W = 10：表示每个通道的特征图宽度为10
+        # BatchNorm的计算步骤如下：
+            # 1. 计算均值（Mean）：
+                # 对于通道0 (R): 它会收集所有4张图里，所有 10x10 个像素上属于通道0的值，总共 4 * 10 * 10 = 400 个数值。
+                # 然后计算这400个数的平均值。得到一个标量 mean_channel_0。
+                # 对于通道1（G）和通道2（B），独立重复上述过程。获得 mean_channel_1 和 mean_channel_2。
+                # 最终我们会得到一个形状为（C, ），即（3, ）的均值向量[mean_channel_0, mean_channel_1, mean_channel_2]
+            # 2. 计算方差（Variance）：
+                # 过程与计算均值完全一样，只是计算的是方差。最终也得到一个形状为 (C,) 的方差向量。
+            # 3. 归一化：
+                # 用每个通道各自的均值和方差，去归一化这个通道上的所有数值（N*H*W 个）。
+            # 4. 缩放和偏移 (weight and bias):
+                # 模型还有两个可学习的参数 gamma（weight） 和 beta（bias），它们的形状也都是 (C,)。
+                # 通道0上的所有数据，都会乘以 gamma_0，加上 beta_0。
+                # 通道1上的所有数据，都会乘以 gamma_1，加上 beta_1。
+                # 以此类推。
     def __init__(self, n):
         super(FrozenBatchNorm2d, self).__init__()
         # self.register_buffer(...)这是理解此类的关键。
@@ -55,12 +76,37 @@ class FrozenBatchNorm2d(torch.nn.Module):
         # 注册一个名为 running_var 的缓冲区。即 BatchNorm 在整个训练集上估计的方差 σ²。
         self.register_buffer("running_var", torch.ones(n))
 
+    # 这个函数的功能是自定义当模型加载预训练权重（即 state_dict）时的行为。
+    # 它是一个“钩子”（Hook），让我们可以介入标准的加载流程，做一些特殊处理。
+    # 在加载预训练权重时，通常会包含一些不需要的键（比如 num_batches_tracked），
+    # 这些键在 FrozenBatchNorm2d 中不需要，所以需要删除。
+    # 然后调用父类（即标准 BatchNorm2d）的 _load_from_state_dict 函数，完成标准的加载流程。
+    # 这样，我们就可以在加载预训练权重时，删除不需要的键，并调用父类的加载方法，完成标准的加载流程。
+    # 总结：_load_from_state_dict 在这里扮演了一个“兼容性适配器”的角色。
+        # 它通过在加载前拦截并清理 state_dict，
+        # 解决了预训练模型和我们自定义模型之间因 num_batches_tracked 参数存在与否而导致的接口不匹配问题。
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict,
                               missing_keys, unexpected_keys, error_msgs):
-        num_batches_tracked_key = prefix + 'num_batches_tracked'
-        if num_batches_tracked_key in state_dict:
-            del state_dict[num_batches_tracked_key]
+        # 这几个参数都是 PyTorch 加载流程的标准输入，我们主要关注 state_dict 和 prefix
+        # state_dict：包含预训练权重的字典
+        # prefix：键的前缀，用于构造完整的键名
+            # 当模型嵌套时，state_dict 中的键会有前缀。
+            # 比如，如果您的 ResNet 中有一个层叫 layer1.0.bn1，那么它的权重键就是 layer1.0.bn1.weight。
+            # 这里的 prefix 就是 layer1.0.bn1.。
+        # local_metadata：本地元数据，通常是空字典
+        # strict：是否严格检查加载的键是否与模型参数匹配
+        # missing_keys：加载时找不到的键
+        # unexpected_keys：加载时找到的但模型不需要的键
+        # error_msgs：加载时可能出现的错误消息
 
+        # 1. 正确拼接出那个我们不想要的键的完整名称
+        num_batches_tracked_key = prefix + 'num_batches_tracked'
+        # 2. 检查这个键是否存在于要加载的 state_dict 中
+        if num_batches_tracked_key in state_dict:
+            # 3. 如果存在，就删除它， 此时，state_dict 就变“干净”了，不再包含 FrozenBatchNorm2d 无法处理的键。
+            del state_dict[num_batches_tracked_key]
+        # 在清理完字典后，这行代码调用 nn.Module 中原始的、默认的加载函数，让它去处理那个已经被我们“消毒”过的 state_dict。
+        # 4. 调用父类（即标准 BatchNorm2d）的 _load_from_state_dict 函数，完成标准的加载流程。
         super(FrozenBatchNorm2d, self)._load_from_state_dict(
             state_dict, prefix, local_metadata, strict,
             missing_keys, unexpected_keys, error_msgs)
