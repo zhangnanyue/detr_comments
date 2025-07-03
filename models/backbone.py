@@ -35,6 +35,7 @@ class FrozenBatchNorm2d(torch.nn.Module):
     produce nans.
     """
     # n 代表输入特征图的通道数 (number of channels)。BatchNorm 是对每个通道独立进行操作的，所以需要知道有多少个通道。
+    # TODO：该如何理解BatchNorm 是对每个通道独立进行操作的？
     def __init__(self, n):
         super(FrozenBatchNorm2d, self).__init__()
         # self.register_buffer(...)这是理解此类的关键。
@@ -64,16 +65,27 @@ class FrozenBatchNorm2d(torch.nn.Module):
             state_dict, prefix, local_metadata, strict,
             missing_keys, unexpected_keys, error_msgs)
 
+    # 标准的BatchNorm2d的公式： y = γ * (x - μ) / sqrt(σ² + ϵ) + β
+    # 假设 scale = γ / sqrt(σ² + ϵ)
+    # 也可以写成： y = (x - μ) * scale + β = scale * x - scale * μ + β = scale * x + (β - scale * μ)
+    # 其中，γ 和 β 是可学习的仿射参数(即weight和bias)，μ 和 σ² 是整个训练集上估计的均值和方差。
     def forward(self, x):
         # move reshapes to the beginning
         # to make it fuser-friendly
+        # 将 self.weight 等缓冲区都是一维向量，形状为 (C,)，其中 C 是通道数。
+        # 输入 x 是一个四维张量，形状为 (N, C, H, W)。
+        # 为了让一维的 (C,) 向量能与四维的 (N, C, H, W) 张量进行广播（broadcast）运算，需要将向量的形状变为 (1, C, 1, 1)。
         w = self.weight.reshape(1, -1, 1, 1)
         b = self.bias.reshape(1, -1, 1, 1)
         rv = self.running_var.reshape(1, -1, 1, 1)
         rm = self.running_mean.reshape(1, -1, 1, 1)
+        # 极小值，防止分母为0
         eps = 1e-5
+        # 计算缩放因子 scale = γ / sqrt(σ² + ϵ)
         scale = w * (rv + eps).rsqrt()
+        # 计算偏移量 bias = β - scale * μ
         bias = b - rm * scale
+        # 最终的输出：scale * x + (β - scale * μ)
         return x * scale + bias
 
 
