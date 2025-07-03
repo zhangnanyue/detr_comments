@@ -8,7 +8,7 @@ from torch import nn
 
 from util.misc import NestedTensor
 
-
+#  基于正弦/余弦函数的固定编码，是 "Attention Is All You Need" 原始方法的二维泛化版。
 class PositionEmbeddingSine(nn.Module):
     """
     This is a more standard version of the position embedding, very similar to the one
@@ -47,7 +47,7 @@ class PositionEmbeddingSine(nn.Module):
         pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
         return pos
 
-
+# 一种可学习的绝对位置编码。
 class PositionEmbeddingLearned(nn.Module):
     """
     Absolute pos embedding, learned.

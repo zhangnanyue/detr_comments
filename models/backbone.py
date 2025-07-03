@@ -158,13 +158,24 @@ class BackboneBase(nn.Module):
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
         self.num_channels = num_channels
 
+    # 这个前向传播过程非常清晰：
+        # 1. 特征提取: 将 tensor_list 中的图像数据 (.tensors) 送入 self.body（即 IntermediateLayerGetter 包装的 ResNet）进行卷积计算，
+            # 得到低分辨率的特征图。例如，[2, 3, 800, 800] 的输入图像，经过 ResNet 后，得到的特征图 x 可能是 [2, 2048, 25, 25]。
+        # 2. 掩码下采样: 同时，原始的、高分辨率的 mask ([2, 800, 800]) 也被相应地进行下采样（通过 F.interpolate），变成与特征图 x 匹配的尺寸（[2, 25, 25]）。
+        # 3. 重新打包: 最后，将下采样后的特征图和下采样后的掩码重新组合成一个新的 NestedTensor 对象，并放入一个字典 out 中返回。这个字典 out 就是我们最终得到的 xs。
+    # 结论: 调用过程是一个“解包 -> 计算 -> 再打包”的过程，确保了输出的特征图 xs 仍然携带着与之对应的、尺寸正确的掩码信息。
     def forward(self, tensor_list: NestedTensor):
+        # 1. 从 NestedTensor 中解包出图像张量
+            # 注意，这里只传入了 .tensors，没有传入 .mask
         xs = self.body(tensor_list.tensors)
         out: Dict[str, NestedTensor] = {}
         for name, x in xs.items():
+            # 2. 从原始的tensor_list中取出mask
             m = tensor_list.mask
             assert m is not None
+            # 3. 对mask进行插值，使其与特征图x的形状匹配
             mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
+            # 4. 将特征图 x 和新的 mask 重新打包成一个 NestedTensor
             out[name] = NestedTensor(x, mask)
         return out
 
@@ -204,6 +215,8 @@ class Joiner(nn.Sequential):
         # mask：一个形状为 (B, H, W) 的布尔掩码，表示哪些位置是有效的（即哪些像素是可见的）。
     def forward(self, tensor_list: NestedTensor):
         # 调用 self[0]，也就是 backbone 模块，对输入 tensor_list 进行处理，提取特征。
+        # 在 PyTorch 中，对一个模块实例使用 () 进行调用（如 model(input)），等同于调用它的 forward 方法（model.forward(input)）。
+        # 所以，xs = self[0](tensor_list) 实际上执行的是： xs = backbone.forward(tensor_list)
         # backbone 的输出 xs 是一个字典，键是层的名字（如 "0"），值是特征图 NestedTensor。
         xs = self[0](tensor_list)
         # 初始化两个空列表，分别用于存放最终的特征图和位置编码。
@@ -236,7 +249,14 @@ def build_backbone(args):
     return_interm_layers = args.masks
     # 4. 创建真正的 Backbone（例如ResNet）
     backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation)
-    # 5. 将backbone和position embedding拼接起来，打包成一个模块
+    # 5. 将backbone和position embedding拼接起来，打包成一个模块，好处是在主模型中，我们只需要调用一次model
+        # 如果在主模型里分别调用它们，代码会是这样：
+            #   features = self.backbone(images)
+            #   positions = self.pos_encoder(features)
+            #   transformer_output = self.transformer(features, positions, ...)
+        # 而使用 Joiner 后，我们只需要调用一次 model(images)，代码会自动处理好位置编码，并传给 Transformer。
+            # features, positions = self.joiner(images)
+            # transformer_output = self.transformer(features, positions, ...)
     model = Joiner(backbone, position_embedding)
     model.num_channels = backbone.num_channels
     return model
