@@ -186,12 +186,19 @@ class Backbone(BackboneBase):
         num_channels = 512 if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
-
+# 目的：将backbone和position embedding拼接起来，打包成一个模块
+# 要解决的问题：Transformer需要两个输入：图像内容特征 (features) 和这些特征的空间位置信息 (positional encodings)。
 class Joiner(nn.Sequential): 
+    # 它继承自 nn.Sequential，这是 PyTorch 中一个非常有用的容器。
+    # nn.Sequential 会按照传入的顺序，依次执行其包含的模块。
+    # 接收 backbone 和 position_embedding 这两个模块作为参数。
     def __init__(self, backbone, position_embedding):
+        # 这是 Joiner 的全部魔法所在。它调用父类 nn.Sequential 的构造函数，并将 backbone 和 position_embedding 传进去。
+        # nn.Sequential 会自动将这两个模块存储起来。此时，我们可以通过 self[0] 访问 backbone，通过 self[1] 访问 position_embedding。
         super().__init__(backbone, position_embedding)
 
     # NestedTensor 是 PyTorch 中的一个数据结构，用于表示嵌套的 Tensor 列表。
+    # 由于我们希望forward 方法能返回两个值 out pos，所以它需要重写 nn.Sequential 的默认 forward 行为。
     def forward(self, tensor_list: NestedTensor):
         xs = self[0](tensor_list)
         out: List[NestedTensor] = []
