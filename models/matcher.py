@@ -8,6 +8,7 @@ from torch import nn
 
 from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
 
+# DETR的核心思想：集合预测（set prediction）
 
 class HungarianMatcher(nn.Module):
     """This class computes an assignment between the targets and the predictions of the network
