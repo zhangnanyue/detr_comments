@@ -32,6 +32,8 @@ class PositionEmbeddingSine(nn.Module):
             scale = 2 * math.pi
         self.scale = scale
 
+    # PE(pos, 2i) = sin(pos / 10000^(2i/d))
+    # PE(pos, 2i+1) = cos(pos / 10000^(2i/d))
     def forward(self, tensor_list: NestedTensor):
         x = tensor_list.tensors     # (N, C, H, W) 图像张量
         mask = tensor_list.mask     # (N, H, W) 掩码张量，True 代表 padding
@@ -49,6 +51,7 @@ class PositionEmbeddingSine(nn.Module):
 
         # 生成一个序列[0, 1, 2, ..., num_pos_feats-1]
         dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
+        # dim_t // 2: // 是整除。这会产生序列 [0, 0, 1, 1, 2, 2, ...]。这是为了让正弦和余弦函数使用相同的频率 i。
         dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
 
         pos_x = x_embed[:, :, :, None] / dim_t
