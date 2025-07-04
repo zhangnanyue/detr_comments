@@ -52,12 +52,21 @@ class PositionEmbeddingSine(nn.Module):
         # 生成一个序列[0, 1, 2, ..., num_pos_feats-1]
         dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
         # dim_t // 2: // 是整除。这会产生序列 [0, 0, 1, 1, 2, 2, ...]。这是为了让正弦和余弦函数使用相同的频率 i。
+        #  这行代码精确地计算了公式的分母 10000^(2i/d)
         dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
 
+        # [:, :, :, None]: 增加一个维度，使 x_embed (N,H,W) 变为 (N,H,W,1)，以便与 dim_t (D,) 进行广播除法。
+        # / dim_t：执行除法，得到pos / 10000^(2i/d)
         pos_x = x_embed[:, :, :, None] / dim_t
         pos_y = y_embed[:, :, :, None] / dim_t
+        # 0::2 和 1::2: 这是 Python 的切片语法，start:stop:step。
+        # 0::2 取出所有偶数索引（0, 2, 4, ...），1::2 取出所有奇数索引（1, 3, 5, ...）。
+        # torch.stack(..., dim=4): 将 sin 和 cos 的结果在新的维度4上堆叠。此时张量形状为 (N, H, W, D/2, 2)。
+        # .flatten(3): 将最后两个维度（D/2 和 2）展平，重新组合成一个维度 D。实现了 sin 和 cos 的交错排列。
         pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
         pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        # torch.cat((pos_y, pos_x), dim=3): 这是最后一步。将 y 方向的编码 ((N, H, W, D)) 和 x 方向的编码 ((N, H, W, D)) 在最后一个维度上拼接，得到最终的 (N, H, W, 2*D) 的位置编码张量。
+        # .permute(0, 3, 1, 2): 将最后两个维度交换，将 (N, H, W, 2*D) 转换为 (N, 2*D, H, W)。
         pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
         return pos
 
