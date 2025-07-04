@@ -8,8 +8,26 @@ from torch import nn
 
 from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
 
-# DETR的核心思想：集合预测（set prediction）
+# 实现了DETR的核心思想：集合预测（set prediction）
+# 核心问题：在计算损失之前，如何将模型的100个预测框与图中不确定数量的真实物体框（Ground Truth）进行匹配？
 
+# 2.linear_sum_assignment：scipy库中的函数，实现了匈牙利算法。
+# 3.box_cxcywh_to_xyxy：将中心点坐标和宽高转换为左上角和右下角坐标。
+# 4.generalized_box_iou：计算两个框的GIoU损失。
+# 5.box_ops.py：包含一些用于处理边界框的辅助函数。
+# 6.util.misc.py：包含一些用于处理张量的辅助函数。
+# 7.util.box_ops.py：包含一些用于处理边界框的辅助函数。
+
+# HungarianMatcher类：匈牙利匹配器，实现了论文中提到的二分图匹配（Bipartite Matching）算法。
+# 背景：
+    # DETR 的 Transformer Decoder 并行输出一个固定大小（比如 N=100）的预测集合（无序的），
+    # 每个元素包含一个类别预测和一个边界框预测。而一张训练图像中，真实物体的数量是不定的（比如 3 个、5 个、或者 10 个）。
+# 问题：
+    # 在计算损失函数时，我们必须知道这 100 个预测中的哪一个应该对第 1 个真实物体负责？哪一个又该对第 2 个真实物体负责？
+    # 我们不能随便拉一个预测去和一个真实物体配对，这样会让模型学习混乱
+# 解决方案：
+    # 使用匈牙利算法（Hungarian Algorithm）来寻找一个”最优匹配“。如何理解这个“最优”？
+    # 它总能找到一个总代价最小的一对一匹配。代价越小，意味着预测框和真实框越“般配”
 class HungarianMatcher(nn.Module):
     """This class computes an assignment between the targets and the predictions of the network
 
