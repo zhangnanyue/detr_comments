@@ -97,8 +97,9 @@ class HungarianMatcher(nn.Module):
         #                         [0.55, 0.55, 0.2, 0.2]]) # 真实框1 (dog)
         #     }
         # ]（长度为 bs=1）
-        tgt_ids = torch.cat([v["labels"] for v in targets]) # shape: [total_num_targets]
-        tgt_bbox = torch.cat([v["boxes"] for v in targets]) # shape: [total_num_targets, 4]
+
+        tgt_ids = torch.cat([v["labels"] for v in targets]) # shape: [total_num_targets], 即[2]
+        tgt_bbox = torch.cat([v["boxes"] for v in targets]) # shape: [total_num_targets, 4]，即[2, 4]
 
         # 3. 计算匹配代价矩阵的各个部分
         # 这是一个预测 vs 真实的过程。我们的目标是构建一个成本矩阵 C
@@ -118,7 +119,9 @@ class HungarianMatcher(nn.Module):
         # 计算预测框和真实框之间的L1距离。这个距离越小，说明预测框和真实框越接近。
         # torch.cdist(A, B, p=1): 这个 PyTorch 函数专门用于计算两组向量之间的距离。
         # p=1 代表计算 L1 距离（曼哈顿距离），即 ∑|a_i - b_i|。
-        # cost_bbox: 形状也是 [bs*nq, total_num_targets]，cost_bbox[i, j] 代表第 i 个预测框与第 j 个真实框之间的 L1 距离。距离越小，代价越低。
+        # cost_bbox: 形状也是 [bs*nq, total_num_targets].
+        # cost_bbox[i, j] 代表第 i 个预测框与第 j 个真实框之间的 L1 距离。距离越小，代价越低。
+        # out_bbox.shape:[4, 4], tgt_bbox.shape:[2, 4], cost_bbox.shape:[4, 2]
         cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
         # Compute the giou cost betwen boxes
