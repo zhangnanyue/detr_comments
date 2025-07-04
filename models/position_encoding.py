@@ -101,6 +101,11 @@ class PositionEmbeddingLearned(nn.Module):
         x_emb = self.col_embed(i)
         # 同理，查找 y 坐标的嵌入。
         y_emb = self.row_embed(j)
+        # x_emb.unsqueeze(0).repeat(h, 1, 1): 将 x_emb 复制 h 次，创建出一个 (h, w, D) 的张量，其中每一行都是相同的 x 方向编码。
+        # y_emb.unsqueeze(1).repeat(1, w, 1): 将 y_emb 复制 w 次，创建出一个 (h, w, D) 的张量，其中每一列都是相同的 y 方向编码。
+        # torch.cat([..., ...], dim=-1): 将 x 和 y 方向的编码在最后一个维度上拼接，得到 (h, w, 2*D) 的张量。
+        # .permute(2, 0, 1).unsqueeze(0).repeat(x.shape[0], 1, 1, 1): 将 (h, w, 2*D) 的张量转换为 (N, 2*D, H, W) 的张量。
+        # 最终，pos 的形状是 (N, 2*D, H, W)，其中每个位置都对应一个 D 维的编码向量。
         pos = torch.cat([
             x_emb.unsqueeze(0).repeat(h, 1, 1),
             y_emb.unsqueeze(1).repeat(1, w, 1),
@@ -109,7 +114,7 @@ class PositionEmbeddingLearned(nn.Module):
 
 # 一个根据配置选择使用哪种方式的工厂函数 build_position_encoding。
 def build_position_encoding(args):
-    N_steps = args.hidden_dim // 2
+    N_steps = args.hidden_dim // 2 # 每个方向的维度
     if args.position_embedding in ('v2', 'sine'):
         # TODO find a better way of exposing other arguments
         position_embedding = PositionEmbeddingSine(N_steps, normalize=True)
