@@ -11,13 +11,6 @@ from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
 # 实现了DETR的核心思想：集合预测（set prediction）
 # 核心问题：在计算损失之前，如何将模型的100个预测框与图中不确定数量的真实物体框（Ground Truth）进行匹配？
 
-# 2.linear_sum_assignment：scipy库中的函数，实现了匈牙利算法。
-# 3.box_cxcywh_to_xyxy：将中心点坐标和宽高转换为左上角和右下角坐标。
-# 4.generalized_box_iou：计算两个框的GIoU损失。
-# 5.box_ops.py：包含一些用于处理边界框的辅助函数。
-# 6.util.misc.py：包含一些用于处理张量的辅助函数。
-# 7.util.box_ops.py：包含一些用于处理边界框的辅助函数。
-
 # HungarianMatcher类：匈牙利匹配器，实现了论文中提到的二分图匹配（Bipartite Matching）算法。
 # 背景：
     # DETR 的 Transformer Decoder 并行输出一个固定大小（比如 N=100）的预测集合（无序的），
@@ -75,6 +68,12 @@ class HungarianMatcher(nn.Module):
             For each batch element, it holds:
                 len(index_i) = len(index_j) = min(num_queries, num_target_boxes)
         """
+        # 获取批次大小和查询数量
+        # outputs["pred_logits"] 的形状是 [batch_size, num_queries, num_classes]
+        # 其中 batch_size 是批次大小，num_queries 是查询数量，num_classes 是整个数据集的类别数量
+        # shape[:2] 取前两个维度，即 [batch_size, num_queries]
+        # bs 是批次大小，表示一次处理多少张图像
+        # num_queries 是查询数量，表示每张图像生成多少个预测框
         bs, num_queries = outputs["pred_logits"].shape[:2]
 
         # We flatten to compute the cost matrices in a batch
