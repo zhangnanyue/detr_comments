@@ -110,6 +110,7 @@ class HungarianMatcher(nn.Module):
         # but approximate it in 1 - proba[target class].
         # The 1 is a constant that doesn't change the matching, it can be ommitted.
         # 3a. 分类代码（Classification Cost）
+        # 取出列向量，也就是根据真实框类别的索引，取出对应的预测概率
         cost_class = -out_prob[:, tgt_ids]
 
         # Compute the L1 cost between boxes
