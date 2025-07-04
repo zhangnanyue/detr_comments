@@ -50,6 +50,7 @@ class HungarianMatcher(nn.Module):
         self.cost_giou = cost_giou
         assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0, "all costs cant be 0"
 
+    #  @torch.no_grad() 装饰器包裹，意味着整个匹配过程不计算梯度，它只是为了确定配对关系，其本身不参与反向传播。
     @torch.no_grad()
     def forward(self, outputs, targets):
         """ Performs the matching
