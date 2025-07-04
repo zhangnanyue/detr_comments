@@ -80,6 +80,8 @@ class HungarianMatcher(nn.Module):
         # 1. 展平预测，以便进行批量矩阵运算
         # .flatten(0, 1): 将 [batch_size, num_queries, ...] 的形状变为 [batch_size * num_queries, ...]。
             # 这是一个提效技巧，使得我们可以用一次大的矩阵运算，同时计算整个批次中所有预测和所有真实物体的配对代价。
+        # outputs["pred_logits"] 的形状是 [batch_size, num_queries, num_classes]
+        # outputs["pred_boxes"] 的形状是 [batch_size, num_queries, 4]
         # softmax(-1): 将模型的原始输出（logits）转换为概率分布。
         out_prob = outputs["pred_logits"].flatten(0, 1).softmax(-1)  # [batch_size * num_queries, num_classes]
         out_bbox = outputs["pred_boxes"].flatten(0, 1)  # [batch_size * num_queries, 4]
@@ -88,6 +90,13 @@ class HungarianMatcher(nn.Module):
         # 2. 拼接所有真实目标
         # 将一个批次中所有图像的真实标签和真实框拼接成一个长长的一维列表。
         # 例如，如果批次里有2张图，第一张有3个物体，第二张有5个，那么 total_num_targets 就是 8。
+        # targets = [
+        #     {
+        #         "labels": tensor([0, 1]), # 真实类别: cat, dog
+        #         "boxes": tensor([[0.25, 0.25, 0.1, 0.1],  # 真实框0 (cat)
+        #                         [0.55, 0.55, 0.2, 0.2]]) # 真实框1 (dog)
+        #     }
+        # ]（长度为 bs=1）
         tgt_ids = torch.cat([v["labels"] for v in targets])
         tgt_bbox = torch.cat([v["boxes"] for v in targets])
 
