@@ -80,8 +80,8 @@ class HungarianMatcher(nn.Module):
         # 1. 展平预测，以便进行批量矩阵运算
         # .flatten(0, 1): 将 [batch_size, num_queries, ...] 的形状变为 [batch_size * num_queries, ...]。
             # 这是一个提效技巧，使得我们可以用一次大的矩阵运算，同时计算整个批次中所有预测和所有真实物体的配对代价。
-        # outputs["pred_logits"] 的形状是 [batch_size, num_queries, num_classes]
-        # outputs["pred_boxes"] 的形状是 [batch_size, num_queries, 4]
+        # outputs["pred_logits"] 的形状是 [batch_size, num_queries, num_classes]->[batch_size*num_queries, num_classes]
+        # outputs["pred_boxes"] 的形状是 [batch_size, num_queries, 4]->[batch_size*num_queries, 4]
         # softmax(-1): 将模型的原始输出（logits）转换为概率分布。
         out_prob = outputs["pred_logits"].flatten(0, 1).softmax(-1)  # [batch_size * num_queries, num_classes]
         out_bbox = outputs["pred_boxes"].flatten(0, 1)  # [batch_size * num_queries, 4]
@@ -97,10 +97,14 @@ class HungarianMatcher(nn.Module):
         #                         [0.55, 0.55, 0.2, 0.2]]) # 真实框1 (dog)
         #     }
         # ]（长度为 bs=1）
-        tgt_ids = torch.cat([v["labels"] for v in targets])
-        tgt_bbox = torch.cat([v["boxes"] for v in targets])
+        tgt_ids = torch.cat([v["labels"] for v in targets]) # shape: [total_num_targets]
+        tgt_bbox = torch.cat([v["boxes"] for v in targets]) # shape: [total_num_targets, 4]
 
         # 3. 计算匹配代价矩阵的各个部分
+        # 这是一个预测 vs 真实的过程。我们的目标是构建一个成本矩阵 C
+        # 行（ROWS）：表示4个模型
+        # 列（COLUMNS）：表示2个真实物体
+        # C.shape:[4, 2]
 
         # Compute the classification cost. Contrary to the loss, we don't use the NLL,
         # but approximate it in 1 - proba[target class].
