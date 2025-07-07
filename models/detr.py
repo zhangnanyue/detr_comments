@@ -17,7 +17,7 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .transformer import build_transformer
 
-
+# 模型主体，整合了BackBone、Transformer和最终的预测头
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
     def __init__(self, backbone, transformer, num_classes, num_queries, aux_loss=False):
