@@ -116,7 +116,7 @@ class DETR(nn.Module):
         return [{'pred_logits': a, 'pred_boxes': b}
                 for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
 
-
+# 负责计算模型预测和真实标签之间的损失。
 class SetCriterion(nn.Module):
     """ This class computes the loss for DETR.
     The process happens in two steps:
@@ -134,9 +134,21 @@ class SetCriterion(nn.Module):
         """
         super().__init__()
         self.num_classes = num_classes
+        # 传入一个匹配器模块。
+        # 这个匹配器的作用是为 num_queries 个预测和图像中 N 个真实物体框（Ground Truth）找到一个最佳的二分匹配。
+        # 数学原理：匈牙利算法：匹配过程基于匈牙利算法。
+        # 它计算一个 num_queries x N 的成本矩阵（cost matrix），其中每个元素代表“第 i 个预测”和“第 j 个真实框”的匹配成本。
+        # 这个成本通常是分类损失和 L1/GIoU 损失的加权和。算法的目标是找到一个总成本最低的匹配方案。
         self.matcher = matcher
+        #  一个字典，包含了不同损失项的权重，例如 {'loss_ce': 1, 'loss_bbox': 5, 'loss_giou': 2}。
+        # 这允许我们调整不同损失的重要性。
         self.weight_dict = weight_dict
+        # eos (end of sentence) 在这里指 “no object” 类别。
+        # 这个系数用于降低“无目标”这个类别的权重。
+        # 因为 num_queries (100) 通常远大于一张图里的物体数，大部分预测都应该是“无目标”，
+        # 降低其权重可以防止模型过于倾向于预测背景，有助于类别平衡。
         self.eos_coef = eos_coef
+        # 一个列表，指定要计算哪些损失，例如 ['labels', 'boxes', 'cardinality']
         self.losses = losses
         empty_weight = torch.ones(self.num_classes + 1)
         empty_weight[-1] = self.eos_coef
