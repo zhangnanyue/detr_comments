@@ -69,12 +69,28 @@ class DETR(nn.Module):
                - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
                                 dictionnaries containing the two above keys for each decoder layer.
         """
+        # 处理输入的图像。
+        # 由于批次（batch）中的图像可能大小不一，这里会将它们填充（padding）到相同尺寸，并生成一个 mask 来标记哪些区域是填充的无效区域。
+        # NestedTensor 是一个自定义的数据结构，同时包含图像张量 tensor 和 mask。
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
+        # 将图像送入骨干网络（如 ResNet）提取特征。
+        # features 是一个列表，包含了骨干网络输出的特征图；pos 是一个列表，包含了对应特征图的位置编码。
         features, pos = self.backbone(samples)
-
+        # 从骨干网络最后一层的输出中提取特征图 src 和其对应的 mask。src 的维度是 [batch_size, C, H, W]。
+        # 从骨干网络最后一层输出的特征中提取特征图张量和掩码
+        # features[-1] 是一个 NestedTensor 对象，包含特征图张量和对应的掩码
+        # decompose() 方法将 NestedTensor 分解为两个部分：
+        # - src: 特征图张量，形状为 [batch_size, channels, height, width]
+        # - mask: 布尔掩码张量，形状为 [batch_size, height, width]，True 表示填充区域，False 表示有效区域
         src, mask = features[-1].decompose()
         assert mask is not None
+        # 这是 Transformer 的核心调用。
+            # self.input_proj(src): 首先用 1x1 卷积将 src 的通道数降维到 hidden_dim。
+            # mask: 传递填充区域的掩码给 Transformer 的注意力机制，使其忽略这些区域。
+            # self.query_embed.weight: 将可学习的 Object Queries 作为解码器的输入。
+            # pos[-1]: 将骨干网络输出的位置编码送入 Transformer。
+            # hs: Transformer 解码器的输出，维度为 [dec_layers, batch_size, num_queries, hidden_dim]。它包含了6个解码器层（如果dec_layers=6）的输出结果。
         hs = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])[0]
 
         outputs_class = self.class_embed(hs)
@@ -344,9 +360,12 @@ def build(args):
         num_queries=args.num_queries,
         aux_loss=args.aux_loss,
     )
+    # 如果需要分割任务，则调用 segmentation.py 中的函数构建分割模型。
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
+    # 调用 matcher.py 中的函数构建匈牙利匹配器。
     matcher = build_matcher(args)
+    # 根据配置参数，定义各种损失的权重。
     weight_dict = {'loss_ce': 1, 'loss_bbox': args.bbox_loss_coef}
     weight_dict['loss_giou'] = args.giou_loss_coef
     if args.masks:
@@ -359,12 +378,15 @@ def build(args):
             aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
         weight_dict.update(aux_weight_dict)
 
+    # 定义需要计算的损失类型。
     losses = ['labels', 'boxes', 'cardinality']
     if args.masks:
         losses += ["masks"]
+    # 实例化损失函数 SetCriterion
     criterion = SetCriterion(num_classes, matcher=matcher, weight_dict=weight_dict,
                              eos_coef=args.eos_coef, losses=losses)
     criterion.to(device)
+    # 实例化后处理模块。
     postprocessors = {'bbox': PostProcess()}
     if args.masks:
         postprocessors['segm'] = PostProcessSegm()
@@ -372,4 +394,5 @@ def build(args):
             is_thing_map = {i: i <= 90 for i in range(201)}
             postprocessors["panoptic"] = PostProcessPanoptic(is_thing_map, threshold=0.85)
 
+    # 返回构建好的模型、损失函数和后处理器，可以直接用于训练和评估。
     return model, criterion, postprocessors
