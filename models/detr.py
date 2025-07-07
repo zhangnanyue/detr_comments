@@ -41,9 +41,17 @@ class DETR(nn.Module):
         # 这是一个多层感知机（MLP），用作回归头。
         # 它将 hidden_dim 维特征向量映射到一个 4 维向量，用于预测边界框的坐标 (center_x, center_y, height, width)。
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        # 它是一个可学习的嵌入层，尺寸为 (num_queries, hidden_dim)。
+        # 这 num_queries 个向量作为输入送入 Transformer 的解码器，
+        # 可以被理解为 num_queries 个学习到的“锚点”或“查询”，每个查询向量负责在图像中寻找并描述一个特定的物体。
+        # 它们在训练过程中会学习到位置信息，因此可以看作是可学习的位置编码。
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
+        # 这是一个 1x1 的卷积层。
+        # 它的作用是将骨干网络（如 ResNet）输出的特征图的通道数（例如 2048）降低到 Transformer 所需的 hidden_dim（例如 256），统一特征维度。
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
         self.backbone = backbone
+        # 一个布尔值，决定是否计算辅助损失（Auxiliary Loss）。
+        # 如果为 True，模型会对 Transformer 解码器每一层的输出都计算损失，这有助于模型训练和收敛
         self.aux_loss = aux_loss
 
     def forward(self, samples: NestedTensor):
@@ -322,10 +330,13 @@ def build(args):
         num_classes = 250
     device = torch.device(args.device)
 
+    # 调用 backbone.py 中的函数构建骨干网络。
     backbone = build_backbone(args)
 
+    # 调用 transformer.py 中的函数构建 Transformer 模型。
     transformer = build_transformer(args)
 
+    # 创建 DETR 模型实例。
     model = DETR(
         backbone,
         transformer,
