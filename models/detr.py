@@ -34,7 +34,12 @@ class DETR(nn.Module):
         self.num_queries = num_queries
         self.transformer = transformer
         hidden_dim = transformer.d_model
+        # 这是一个线形层（即全连接层），用作分类头。
+        # 它将 Transformer 解码器输出的 hidden_dim 维特征向量映射到一个 num_classes + 1 维的向量，用于预测类别。
+        # +1 是因为需要一个额外的类别来表示“无目标”（no object）。
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
+        # 这是一个多层感知机（MLP），用作回归头。
+        # 它将 hidden_dim 维特征向量映射到一个 4 维向量，用于预测边界框的坐标 (center_x, center_y, height, width)。
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
