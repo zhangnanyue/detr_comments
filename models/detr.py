@@ -93,7 +93,12 @@ class DETR(nn.Module):
             # hs: Transformer 解码器的输出，维度为 [dec_layers, batch_size, num_queries, hidden_dim]。它包含了6个解码器层（如果dec_layers=6）的输出结果。
         hs = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])[0]
 
+        # 将解码器输出 hs 通过分类头，得到每个 query 的类别预测 logits。
+        # 输出维度为 [dec_layers, batch_size, num_queries, num_classes + 1]。
         outputs_class = self.class_embed(hs)
+        # 将解码器输出 hs 通过回归头，得到每个 query 的边界框预测。
+        # .sigmoid() 函数将输出归一化到 [0, 1] 范围，表示相对于图像尺寸的相对坐标 (cx, cy, h, w)。
+        # 输出维度为 [dec_layers, batch_size, num_queries, 4]。
         outputs_coord = self.bbox_embed(hs).sigmoid()
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         if self.aux_loss:
