@@ -100,7 +100,10 @@ class DETR(nn.Module):
         # .sigmoid() 函数将输出归一化到 [0, 1] 范围，表示相对于图像尺寸的相对坐标 (cx, cy, h, w)。
         # 输出维度为 [dec_layers, batch_size, num_queries, 4]。
         outputs_coord = self.bbox_embed(hs).sigmoid()
+        # 将最终的预测结果存储在字典 out 中。
+        # 其中 pred_logits 是类别预测，pred_boxes 是边界框预测。
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        # 如果启用了辅助损失，则将前面所有解码器层的预测也一并打包返回。
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
         return out
