@@ -83,8 +83,6 @@ def get_args_parser():
     parser.add_argument('--coco_path', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
-    parser.add_argument('--num_classes', default=91, type=int,
-                        help="Number of classes in the dataset, this should be max_obj_id + 1")
 
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
@@ -177,26 +175,7 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        
-        model_state_dict = checkpoint['model']
-        # check if class_embed weights are in the checkpoint
-        if 'class_embed.weight' in model_state_dict:
-            # get the number of classes from the checkpoint
-            num_classes_ckpt = model_state_dict['class_embed.weight'].shape[0] - 1
-            # if the number of classes in the checkpoint is different from the one passed in args
-            if num_classes_ckpt != args.num_classes:
-                print(f"Number of classes in checkpoint ({num_classes_ckpt}) is different from the one passed in args ({args.num_classes}).")
-                print("Removing class_embed weights from checkpoint.")
-                # remove class_embed weights
-                del model_state_dict['class_embed.weight']
-                del model_state_dict['class_embed.bias']
-                # load the model with strict=False
-                model_without_ddp.load_state_dict(model_state_dict, strict=False)
-            else:
-                model_without_ddp.load_state_dict(model_state_dict)
-        else:
-             model_without_ddp.load_state_dict(model_state_dict)
-
+        model_without_ddp.load_state_dict(checkpoint['model'])
         if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])

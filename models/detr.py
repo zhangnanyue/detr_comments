@@ -36,14 +36,14 @@ class DETR(nn.Module):
         hidden_dim = transformer.d_model
         # 这是一个线形层（即全连接层），用作分类头。
         # 它将 Transformer 解码器输出的 hidden_dim 维特征向量映射到一个 num_classes + 1 维的向量，用于预测类别。
-        # +1 是因为需要一个额外的类别来表示"无目标"（no object）。
+        # +1 是因为需要一个额外的类别来表示“无目标”（no object）。
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
         # 这是一个多层感知机（MLP），用作回归头。
         # 它将 hidden_dim 维特征向量映射到一个 4 维向量，用于预测边界框的坐标 (center_x, center_y, height, width)。
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         # 它是一个可学习的嵌入层，尺寸为 (num_queries, hidden_dim)。
         # 这 num_queries 个向量作为输入送入 Transformer 的解码器，
-        # 可以被理解为 num_queries 个学习到的"锚点"或"查询"，每个查询向量负责在图像中寻找并描述一个特定的物体。
+        # 可以被理解为 num_queries 个学习到的“锚点”或“查询”，每个查询向量负责在图像中寻找并描述一个特定的物体。
         # 它们在训练过程中会学习到位置信息，因此可以看作是可学习的位置编码。
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         # 这是一个 1x1 的卷积层。
@@ -55,7 +55,7 @@ class DETR(nn.Module):
         self.aux_loss = aux_loss
 
     def forward(self, samples: NestedTensor):
-        """ The forward expects a NestedTensor, which consists of:
+        """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
 
@@ -137,15 +137,15 @@ class SetCriterion(nn.Module):
         # 传入一个匹配器模块。
         # 这个匹配器的作用是为 num_queries 个预测和图像中 N 个真实物体框（Ground Truth）找到一个最佳的二分匹配。
         # 数学原理：匈牙利算法：匹配过程基于匈牙利算法。
-        # 它计算一个 num_queries x N 的成本矩阵（cost matrix），其中每个元素代表"第 i 个预测"和"第 j 个真实框"的匹配成本。
+        # 它计算一个 num_queries x N 的成本矩阵（cost matrix），其中每个元素代表“第 i 个预测”和“第 j 个真实框”的匹配成本。
         # 这个成本通常是分类损失和 L1/GIoU 损失的加权和。算法的目标是找到一个总成本最低的匹配方案。
         self.matcher = matcher
         #  一个字典，包含了不同损失项的权重，例如 {'loss_ce': 1, 'loss_bbox': 5, 'loss_giou': 2}。
         # 这允许我们调整不同损失的重要性。
         self.weight_dict = weight_dict
-        # eos (end of sentence) 在这里指 "no object" 类别。
-        # 这个系数用于降低"无目标"这个类别的权重。
-        # 因为 num_queries (100) 通常远大于一张图里的物体数，大部分预测都应该是"无目标"，
+        # eos (end of sentence) 在这里指 “no object” 类别。
+        # 这个系数用于降低“无目标”这个类别的权重。
+        # 因为 num_queries (100) 通常远大于一张图里的物体数，大部分预测都应该是“无目标”，
         # 降低其权重可以防止模型过于倾向于预测背景，有助于类别平衡。
         self.eos_coef = eos_coef
         # 一个列表，指定要计算哪些损失，例如 ['labels', 'boxes', 'cardinality']
@@ -359,10 +359,10 @@ def build(args):
     # you should pass `num_classes` to be 2 (max_obj_id + 1).
     # For more details on this, check the following discussion
     # https://github.com/facebookresearch/detr/issues/108#issuecomment-650269223
-    num_classes = args.num_classes
+    num_classes = 20 if args.dataset_file != 'coco' else 91
     if args.dataset_file == "coco_panoptic":
         # for panoptic, we just add a num_classes that is large enough to hold
-        # max_obj_id + 1, we don't use it in our loss
+        # max_obj_id + 1, but the exact value doesn't really matter
         num_classes = 250
     device = torch.device(args.device)
 
